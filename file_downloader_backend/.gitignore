@@ -1,0 +1,16 @@
+node_modules
+dist
+artifacts
+
+.DS_Store
+
+*.png
+*.jpg
+*.jpeg
+
+data
+.env
+
+docker/scripts/run.sh
+
+files/*
