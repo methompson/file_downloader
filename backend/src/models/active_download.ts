@@ -94,6 +94,11 @@ export class ActiveDownload extends EventEmitter {
     }
   }
 
+  /**
+   * Handles closing an HTTP response. This can be when the download is finished or when
+   * the download is interrupted or paused. Closes the file handle, updates the download
+   * metadata and emits an event.
+   */
   async responseCloseHandler(fileHandle: FileHandle, completedBytes: number) {
     const op = this.downloadOp;
     // Close the file handle
@@ -235,6 +240,7 @@ export class ActiveDownload extends EventEmitter {
     const supportedProtocols = ['http:', 'https:'];
 
     if (!supportedProtocols.includes(this.downloadOp.url.protocol)) {
+      // We fail the download, set the status to failed and throw an error
       this.downloadOp.status = DownloadStatus.Failed;
       await updateDownload(this.downloadOp);
       throw new Error('Unsupported protocol');
@@ -250,8 +256,14 @@ export class ActiveDownload extends EventEmitter {
       await updateDownload(this.downloadOp);
       throw e;
     });
+
+    // If the file size is the same as the completed bytes, we have
+    // synced things up and we can continue. Otherwise, we need
+    // to restart, because we don't know where we left off.
     const canResume = fileSize === this.downloadOp.completedBytes;
 
+    // We can only resume if the server supports resuming and
+    // our download is actually synced.
     const resumeDownload =
       canResume &&
       this.downloadOp.supportsAcceptRanges &&
@@ -262,7 +274,9 @@ export class ActiveDownload extends EventEmitter {
       headers['Range'] = `bytes=${this.downloadOp.completedBytes}-`;
     }
 
-    // Make the request and save it. The callback will handle the response
+    // Make the request. The callback handles the response. We set
+    // the request up and send the response to the response handler,
+    // which will set up what is needed to save the file to disk.
     const request = get(this.downloadOp.url, { headers }, async (response) => {
       this._request = request;
       // Should set the status correctly
@@ -281,7 +295,7 @@ export class ActiveDownload extends EventEmitter {
       this.responseHandler(response, request, fileHandle);
     });
 
-    // Handle errors during the request
+    // Handle errors during the request.
     request.on('error', async (error) => {
       console.error('Download failed:', error);
 
@@ -303,6 +317,10 @@ export class ActiveDownload extends EventEmitter {
    * responseCloseHandler to update the download operation's status.
    */
   async stopDownload() {
+    // We create a promise that resolves when the downloadClosed event is emitted.
+    // We set this prior to destroying so that this method will
+    // catch the event. If we do it after, the event will never
+    // be caught.
     const waitObject = new Promise<void>((res) => {
       const opFinishedCallback = () => {
         this.off('downloadClosed', opFinishedCallback);

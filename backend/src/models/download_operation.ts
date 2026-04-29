@@ -59,19 +59,47 @@ const downloadOperationJSONTest = typeGuardTestGenerator(
 
 /**
  * DownloadOperation represents all of the state of a download operation.
- * The class is designed to mutate over time as the download progresses.
+ * The class is designed to allow some of the data to mutate over time as
+ * the download progresses.
+ *
  * E.g. as more bytes are downloaded, the completedBytes property is
  * updated.
+ *
  * The state can be serialized to JSON for persistence.
  */
 export class DownloadOperation {
-  private _id: string;
-  private _originalUrl: string;
+  // These values are immutable.
+  private readonly _id: string;
+  private readonly _originalUrl: string;
+  private readonly _filename?: string;
+
+  // These values can be updated as the download progresses.
+
+  /**
+   * The URL from which we actually download the file. This can be different from the
+   * original URL if there's a redirect. It's mutable because we won't know what the
+   * final URL is until we make the request and follow any redirects.
+   */
   private _url: URL;
+
+  /**
+   * The total size of the file being downloaded. This is set to -1 if the total size is
+   * unknown. It gets updated when we get a response from the server and know how big the
+   * file is.
+   */
   private _totalSize: number = -1;
-  private _completedBytes: number = 0;
-  private _filename?: string;
+
+  /**
+   * This indicates whether the server supports accept-ranges, which allows us to
+   * continue a download. We start off with false, but when we receive a response from
+   * the server, we update this value accordingly.
+   */
   private _supportsAcceptRanges: boolean = false;
+
+  /**
+   * The amount of bytes completed. These get updated as the download progresses.
+   */
+  private _completedBytes: number = 0;
 
   status: DownloadStatus;
 

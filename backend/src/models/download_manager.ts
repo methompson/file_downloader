@@ -33,19 +33,22 @@ class DownloadManager {
    * Starts the process of downloading a file
    */
   async startDownload(downloadId: string): Promise<DownloadOperation> {
-    // Should start the operation of downloading the file
+    // Gets the download op.
     const downloadOp = this._downloadOperations[downloadId];
 
+    // If it doesn't exist, throw an error.
     if (!downloadOp) {
       throw new NoDownloadOperationError('Invalid download operation ID');
     }
 
+    // We create an active download from a download op. The active download class
+    // will handle the actual downloading of the file and updating the download op.
     const activeDownload = await ActiveDownload.newActiveDownload(downloadOp);
-    activeDownload.on('finishedDownload', (id) => {
-      this.finishDownload(id);
+    activeDownload.on('finishedDownload', () => {
+      this.finishDownload(downloadId);
     });
 
-    // Save the request so that it can be stopped later
+    // Save the request to an object so that it can be retrieved and stopped later
     this._activeDownloads[downloadId] = activeDownload;
 
     return downloadOp;
